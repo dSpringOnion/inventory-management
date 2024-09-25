@@ -1,87 +1,105 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql" // or "postgresql", "mysql", "mongodb", etc.
   url      = env("DATABASE_URL")
 }
 
-model Users {
-  userId String @id
-  name   String
-  email  String
+model User {
+  id         String    @id @default(cuid())
+  name       String
+  email      String    @unique
+  password   String
+  permission LevelEnum @default(MANAGER)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  stores   Store[]
+  invoices Invoice[]
 }
 
-model Products {
-  productId     String      @id
+enum LevelEnum {
+  MANAGER
+  AREA_MANAGER
+  ADMIN
+}
+
+model Store {
+  id            String            @id @default(cuid())
   name          String
-  price         Float
-  rating        Float?
-  stockQuantity Int
-  Sales         Sales[]
-  Purchases     Purchases[]
+  address       String
+  contactMethod ContactMethodEnum
+  userId        String // Added foreign key field
+  user          User              @relation(fields: [userId], references: [id])
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  items    Item[]
+  invoices Invoice[]
 }
 
-model Sales {
-  saleId      String   @id
-  productId   String
-  timestamp   DateTime
-  quantity    Int
-  unitPrice   Float
-  totalAmount Float
-  product     Products @relation(fields: [productId], references: [productId])
+enum ContactMethodEnum {
+  PHONE
+  EMAIL
+  WECHAT
 }
 
-model Purchases {
-  purchaseId String   @id
-  productId  String
-  timestamp  DateTime
-  quantity   Int
-  unitCost   Float
-  totalCost  Float
-  product    Products @relation(fields: [productId], references: [productId])
+model Item {
+  itemId      String   @id @default(cuid())
+  nameEn      String
+  nameZh      String
+  price       Decimal
+  description String
+  onHand      Int
+  minStock    Int
+  vendorId    String // Added foreign key field
+  vendor      Vendor   @relation(fields: [vendorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoiceItems InvoiceItem[]
+  Store        Store?        @relation(fields: [storeId], references: [id])
+  storeId      String?
 }
 
-model Expenses {
-  expenseId String   @id
-  category  String
-  amount    Float
-  timestamp DateTime
+model Vendor {
+  id            String            @id @default(cuid())
+  name          String
+  address       String
+  contactMethod ContactMethodEnum
+  items         Item[]
+  invoices      Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model SalesSummary {
-  salesSummaryId   String   @id
-  totalValue       Float
-  changePercentage Float?
-  date             DateTime
+model Invoice {
+  invoiceId String   @id @default(cuid())
+  date      DateTime
+  totalCost Decimal
+  vendorId  String // Added foreign key field
+  userId    String // Added foreign key field
+  storeId   String // Added foreign key field
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  store     Store    @relation(fields: [storeId], references: [id])
+
+  invoiceItems InvoiceItem[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }
 
-model PurchaseSummary {
-  purchaseSummaryId String   @id
-  totalPurchased    Float
-  changePercentage  Float?
-  date              DateTime
-}
-
-model ExpenseSummary {
-  expenseSummaryId  String              @id
-  totalExpenses     Float
-  date              DateTime
-  ExpenseByCategory ExpenseByCategory[]
-}
-
-model ExpenseByCategory {
-  expenseByCategoryId String         @id
-  expenseSummaryId    String
-  category            String
-  amount              BigInt
-  date                DateTime
-  expenseSummary      ExpenseSummary @relation(fields: [expenseSummaryId], references: [expenseSummaryId])
+model InvoiceItem {
+  id        String   @id @default(cuid())
+  invoiceID String // Added foreign key field
+  itemId    String // Added foreign key field
+  invoice   Invoice  @relation(fields: [invoiceID], references: [invoiceId])
+  item      Item     @relation(fields: [itemId], references: [itemId])
+  quantity  Int
+  unitCost  Decimal
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
