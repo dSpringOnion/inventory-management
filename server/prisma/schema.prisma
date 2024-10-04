@@ -1,43 +1,130 @@
+// schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql" // or "postgresql", "mysql", "mongodb", etc.
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+enum LocationType {
+  STORE
+  RESTAURANT
+}
+
 model User {
-  id         String    @id @default(cuid())
-  name       String
-  email      String    @unique
-  password   String
-  permission LevelEnum @default(MANAGER)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  stores   Store[]
-  invoices Invoice[]
+  // Relations
+  userRoles     UserRole[]
+  userAreas     UserArea[]
+  userLocations UserLocation[]
+  orders        Order[]
 }
 
-enum LevelEnum {
-  MANAGER
-  AREA_MANAGER
-  ADMIN
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+
+  // Relations
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
 }
 
-model Store {
+model UserRole {
+  id     Int    @id @default(autoincrement())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  role   Role   @relation(fields: [roleId], references: [id])
+  roleId Int
+
+  @@unique([userId, roleId])
+}
+
+model Permission {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+
+  // Relations
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  role         Role       @relation(fields: [roleId], references: [id])
+  roleId       Int
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  permissionId Int
+
+  @@unique([roleId, permissionId])
+}
+
+model Area {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  locations Location[]
+  userAreas UserArea[]
+}
+
+model UserArea {
+  id     Int    @id @default(autoincrement())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  area   Area   @relation(fields: [areaId], references: [id])
+  areaId String
+
+  @@unique([userId, areaId])
+}
+
+model Location {
+  id        String       @id @default(cuid())
+  name      String
+  address   String
+  type      LocationType
+  areaId    String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // Relations
+  area          Area           @relation(fields: [areaId], references: [id])
+  userLocations UserLocation[]
+  locationItems LocationItem[]
+  orders        Order[]
+}
+
+model UserLocation {
+  id         Int      @id @default(autoincrement())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  location   Location @relation(fields: [locationId], references: [id])
+  locationId String
+
+  @@unique([userId, locationId])
+}
+
+model Vendor {
   id            String            @id @default(cuid())
   name          String
   address       String
   contactMethod ContactMethodEnum
-  userId        String // Added foreign key field
-  user          User              @relation(fields: [userId], references: [id])
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  items    Item[]
-  invoices Invoice[]
+  // Relations
+  items Item[]
 }
 
 enum ContactMethodEnum {
@@ -52,54 +139,52 @@ model Item {
   nameZh      String
   price       Decimal
   description String
-  onHand      Int
-  minStock    Int
-  vendorId    String // Added foreign key field
-  vendor      Vendor   @relation(fields: [vendorId], references: [id])
+  vendorId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  invoiceItems InvoiceItem[]
-  Store        Store?        @relation(fields: [storeId], references: [id])
-  storeId      String?
+  // Relations
+  vendor        Vendor         @relation(fields: [vendorId], references: [id])
+  locationItems LocationItem[]
+  orderItems    OrderItem[]
 }
 
-model Vendor {
-  id            String            @id @default(cuid())
-  name          String
-  address       String
-  contactMethod ContactMethodEnum
-  items         Item[]
-  invoices      Invoice[]
+model LocationItem {
+  locationId String
+  itemId     String
+  quantity   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Relations
+  location Location @relation(fields: [locationId], references: [id])
+  item     Item     @relation(fields: [itemId], references: [itemId])
+
+  @@id([locationId, itemId])
 }
 
-model Invoice {
-  invoiceId String   @id @default(cuid())
-  date      DateTime
-  totalCost Decimal
-  vendorId  String // Added foreign key field
-  userId    String // Added foreign key field
-  storeId   String // Added foreign key field
-  vendor    Vendor   @relation(fields: [vendorId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
-  store     Store    @relation(fields: [storeId], references: [id])
+model Order {
+  id         String   @id @default(cuid())
+  userId     String
+  locationId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  invoiceItems InvoiceItem[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  // Relations
+  user       User        @relation(fields: [userId], references: [id])
+  location   Location    @relation(fields: [locationId], references: [id])
+  orderItems OrderItem[]
 }
 
-model InvoiceItem {
-  id        String   @id @default(cuid())
-  invoiceID String // Added foreign key field
-  itemId    String // Added foreign key field
-  invoice   Invoice  @relation(fields: [invoiceID], references: [invoiceId])
-  item      Item     @relation(fields: [itemId], references: [itemId])
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   String
+  itemId    String
   quantity  Int
-  unitCost  Decimal
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id])
+  item  Item  @relation(fields: [itemId], references: [itemId])
 }
